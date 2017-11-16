@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+
+# CAPTURE: A cheap, inefficient hack for when you're too lazy to build ImageMagick locally     
+# Uses xwd to capture a full screenshot and sends it to the system of your choice for processing
+# kludged by ict @ NFINIT systems
+
+SC_VER=1.0.0
+
+# Default configuration:
+
+DEST="$HOME/pictures/captures"
+TMP='~'
+STAMP_FMT='%Y-%m-%d-%H-%M-%S'
+OUT_FMT='png'
+
+# Parse arguments
+
+if [ $# -eq 0 ]; then
+	echo "usage: capture [host] [username]"
+	exit
+elif [ $# -eq 1 ]; then
+	TARGET=$1
+	# For those who would rather their remote username stays anonymous
+elif [ $# -gt 1 ]; then
+	TARGET=$1
+	TARGET_USER=$2
+fi
+
+# Generate the capture filename 
+
+TIMESTAMP=$(date +"$STAMP_FMT")
+FILENAME="capture-$TIMESTAMP"
+RAW="$FILENAME.xwd"
+IN="$FILENAME.xwd.gz"
+OUT="$FILENAME.$OUT_FMT.gz"
+FINAL="$FILENAME.$OUT_FMT"
+
+# Prepare local directories
+mkdir -p $DEST
+
+# Take and compress the screenshot
+xwd -root > "$DEST/$RAW"
+echo "*** CAPTURE $SC_VER ***"
+echo "Creating archive..."
+gzip -c "$DEST/$RAW" > "$DEST/$IN"  
+rm -f "$DEST/$RAW"
+
+# Get the remote username just in case it's different
+
+[[ -z $2 ]] && read -p "Remote username: " TARGET_USER
+[[ -z $TARGET_USER ]] && TARGET_USER="$USER"
+
+# Oh my, this is abhorrent. But there's no other option without relying on non-standard utilites like sshpass.
+# But at least you know your password... right?
+
+echo "Copying archive to remote host..."
+scp "$DEST/$IN" "$TARGET_USER@$TARGET:$TMP/$IN"
+rm -f "$DEST/$IN"
+echo "Performing conversion on remote host..."
+ssh "$TARGET_USER@$TARGET" "gunzip $TMP/$IN; 
+			    convert $TMP/$RAW $TMP/$FINAL; 
+			    rm -f $TMP/$RAW; 
+			    gzip -c $TMP/$FINAL > $TMP/$OUT;
+			    rm -f $TMP/$FINAL"
+echo "Retrieving archive from remote host..."
+scp "$TARGET_USER@$TARGET:$TMP/$OUT" "$DEST/$OUT"
+echo "Deleting archive from remote host..."
+ssh "$TARGET_USER@$TARGET" "rm $TMP/$OUT"
+echo "Unpacking archive..."
+gunzip "$DEST/$OUT"
+echo "Capture complete."
+
+# What a ride.
