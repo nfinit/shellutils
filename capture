@@ -36,9 +36,11 @@ OUT="$FILENAME.$OUT_FMT.gz"
 FINAL="$FILENAME.$OUT_FMT"
 
 # Prepare local directories
+
 mkdir -p $DEST
 
 # Take and compress the screenshot
+
 xwd -root > "$DEST/$RAW"
 echo "*** CAPTURE $SC_VER ***"
 echo "Creating archive..."
